@@ -165,11 +165,7 @@ if not defined %selected_var% (
 rem ============================================
 rem  【获取选中的打印机名称】
 rem ============================================
-for /f "tokens=2 delims==" %%v in ('set %selected_var% 2^>nul') do (
-    for /f "tokens=1 delims=|" %%p in ("%%v") do (
-        set "SELECT=%%p"
-    )
-)
+for /f "tokens=1 delims=|" %%p in ("!%selected_var%!") do set "SELECT=%%p"
 echo ========================================
 echo 您选择了：[%SELECT_Interactive%] !SELECT!
 echo ========================================
