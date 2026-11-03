@@ -1,4 +1,4 @@
-@echo off & PUSHD %~DP0 & TITLE 打印机连接工具增强版-如有连接失败和异常需要技术支持请联系IT中心运维组-姚志明
+@echo off & PUSHD %~DP0 & TITLE 打印机连接工具网络版 - 如有异常请联系管理员
 setlocal enabledelayedexpansion
 
 rem exit /b 错误码：0代表正常结束，1代表异常结束
@@ -58,7 +58,7 @@ if errorlevel 1 (
 )
 echo.
 echo 网络连接成功！！！即将解析配置信息！！！
-timeout 3 >nul
+timeout 2 >nul
 
 
 rem ---------- 通过网络读取 INI 配置文件（先读型号定义区，再读打印机信息区） ----------
@@ -87,7 +87,7 @@ if not defined PRINTER_1 (
 
 echo.
 echo 配置解析成功！！！即将渲染菜单！！！
-timeout 3 >nul
+timeout 2 >nul
 
 
 :select_loop
@@ -208,7 +208,7 @@ timeout 2
 rem ---------- 连接打印机主逻辑 ----------
 
 echo.
-echo.正在检测网络连通性...大约需要6秒...请耐心等待...
+echo.正在检测打印机网络连通性...大约需要6秒...请耐心等待...
 ping -n 3 -w 2000 %port%
 if errorlevel 1 (
     echo.
@@ -221,11 +221,14 @@ if errorlevel 1 (
 )
 echo.
 echo 网络连接成功！！！
-
+echo.
+timeout 2
+cls
 
 rem 添加打印端口
 echo.
 echo 正在创建打印机端口...请耐心等待...
+echo.
 cscript //nologo %WINDIR%\System32\Printing_Admin_Scripts\zh-CN\prnport.vbs -a -r "%port%" -h %port% -o raw -n 9100
 
 
@@ -239,24 +242,22 @@ printui /if /f "%DRV_PATH%%drv_file%" /r "%port%" /m %model_name% /b %printer_na
 rem 关闭"让Windows管理我的默认打印机"
 echo.
 echo 正在准备设置默认打印机...请耐心等待....
+echo.
 REG ADD "HKCU\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Windows" /v "LegacyDefaultPrinterMode" /t REG_DWORD /d "1" /f >nul 2>&1
 
 rem 设置为默认打印机
 echo.
 echo 正在将 %printer_name% 设置为默认打印机...
 printui /n %printer_name% /y
+echo.
 echo %printer_name% - 已设置为默认打印机!
-echo.
-echo.执行完毕，如果下面显示出打印机名称，使用该名称的打印机打印即可！
-echo.
-wmic printer where Name=%printer_name% get name | findstr /v "Name"
 echo.
 choice /c YN /t 10 /d Y /m "是否打印测试页验证安装情况(10秒内未选择默认Y)"
 if errorlevel 2 (
     exit /b
 ) else if errorlevel 1 (
     cscript //nologo %WINDIR%\System32\Printing_Admin_Scripts\zh-CN\prnqctl.vbs -e -p %printer_name%
-    rem control printers
+    echo.
     echo.按任意键退出...
     pause >nul
 )

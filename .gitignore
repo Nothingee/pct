@@ -1,0 +1,3 @@
+# 调试版脚本与运行日志不入库
+*debug*.bat
+printer_log.log

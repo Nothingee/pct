@@ -7,7 +7,7 @@
 3. 用户输入编号选择打印机；
 4. 自动创建 TCP/IP 打印端口、安装驱动、设置默认打印机、可选打印测试页。
 
-脚本只使用系统自带组件（`ping`、`cscript`、`printui`、`wmic`、`reg`），不依赖任何第三方工具，兼容性高。
+脚本只使用系统自带组件（`ping`、`cscript`、`printui`、`reg`，Win11 版另用 PowerShell 兜底），不依赖任何第三方工具，兼容性高。
 
 所有打印机 IP、驱动路径、驱动型号名称都维护在服务器上的 `printers.ini` 里，后面增减打印机、IP调整变化或新增型号，只改动配置文件，使用者无需重新下载新版脚本，维护者也无需修改脚本本身，只需维护共享上的配置文件即可。
 
@@ -29,16 +29,16 @@
 
 | 文件 | 说明 |
 |---|---|
-| `打印机连接工具_网络版.bat` | **当前推荐版本**。多次迭代的最新版本，从 SMB 共享读取 `printers.ini`，动态生成菜单；IP、驱动路径、型号名称均在线维护，打印机增加减少，IP地址变化，使用者无需重新下载脚本。 |
+| `打印机连接工具_网络版_Win11.bat` | **当前推荐版本**。针对 Windows 11 优化，修复闪退、默认打印机未生效、`wmic` 缺失等问题，运行日志写入 `printer_log.log`；从 SMB 共享读取 `printers.ini` 动态生成菜单。 |
+| `打印机连接工具_网络版_Win10.bat` | Windows 10 传统版。早期逻辑，使用 VBScript 提权与 `wmic`；配置方式与 Win11 版相同。 |
 | `打印机连接工具_单机版.bat` | 单机离线版。IP 与型号全部硬编码在脚本内，历史旧版本。 |
-| `README_打印机连接工具.md` | 本说明文档 |
+| `README.md` | 本说明文档 |
 
 ## 三、实现原理与执行顺序
 
 ### 1. 脚本提权
 
-脚本第 9-15 行检查当前是否以管理员身份运行；不是则用系统自带的 VBScript（`Shell.Application.ShellExecute ... "runas"`）
-以管理员身份重新启动自己。**创建端口、安装驱动必须管理员权限。**
+脚本启动时检查当前是否以管理员身份运行；不是则自动提权：Win11 版用 PowerShell 的 `Start-Process -Verb RunAs`，Win10 版用系统自带 VBScript（`Shell.Application.ShellExecute ... "runas"`）以管理员身份重新启动自己。**创建端口、安装驱动必须管理员权限。**
 
 ### 2. 网络连通检测
 
@@ -103,7 +103,7 @@ printui /if /f "%DRV_PATH%%drv_file%" /r "%port%" /m %model_name% /b %printer_na
 
 ### 7. 设置默认打印机
 
-会先修改注册表 `LegacyDefaultPrinterMode=1`关闭让Windows自己管理打印机，再利用 `printui /n <打印机名> /y` 设为默认打印机；
+会先修改注册表 `LegacyDefaultPrinterMode=1` 关闭让 Windows 自己管理打印机；Win11 版随后依次用 `rundll32 printui.dll,PrintUIEntry /y`、`printui /n /y`、COM、CIM 多种方式设置默认打印机，并逐一校验是否真正生效；
 最后询问是否打印测试页（`prnqctl.vbs -e`）。
 
 ---
@@ -194,9 +194,9 @@ printui /if /f "%DRV_PATH%%drv_file%" /r "%port%" /m %model_name% /b %printer_na
 ├─ HP\M227\...（dll、cat、x64 等配套文件）
 └─ EPSON_L3550\X64\E1WF1BZE.INF
 ```
-4. 记录 INF **相对** `...\Windows\` 的路径，必须以 `\` 开头，例如
-   `\HP\M227\hpygid30_v4.inf`、`\EPSON_L3550\X64\E1WF1BZE.INF`。
-   脚本会把它拼到 `DRV_PATH` 后面组成完整路径。
+4. 记录 INF **相对** `...\Windows\` 的路径，**开头不要带 `\`**，直接写子目录名，例如
+   `HP\M227\hpygid30_v4.inf`、`EPSON_L3550\X64\E1WF1BZE.INF`。
+   因为 `DRV_PATH` 末尾已经带 `\`，脚本直接拼接即可组成完整路径。
 
 > 不要把安装包 exe 直接放进共享——脚本用的是 INF，不是 exe。
 
@@ -326,7 +326,7 @@ PRINTER1="HP LaserJet MFP M227-M231 PCL-6"
 则 `printers.ini` 的 `[MODELS]` 写：
 
 ```ini
-M227=\LaserJet_M227_M231_W10\x64\hpsw642a4_x64.inf|HP LaserJet MFP M227-M231 PCL-6
+M227=LaserJet_M227_M231_W10\x64\hpsw642a4_x64.inf|HP LaserJet MFP M227-M231 PCL-6
 ```
 
 若型号行是情况 A 的直接引号写法，则 `|` 右边直接取引号内文字，例如 `EPSON L3550 Series`。
@@ -350,8 +350,8 @@ M227=\LaserJet_M227_M231_W10\x64\hpsw642a4_x64.inf|HP LaserJet MFP M227-M231 PCL
 ; 本文件必须保存为 ANSI/GBK 编码 + Windows(CRLF) 换行
 
 [MODELS]
-HP530=\Smart_Tank_530_W10\hpygid30_v4.inf|HP Smart Tank 530 series PCL-3
-EPSON=\EPSON_L3550\X64\E1WF1BZE.INF|EPSON L3550 Series
+HP530=Smart_Tank_530_W10\hpygid30_v4.inf|HP Smart Tank 530 series PCL-3
+EPSON=EPSON_L3550\X64\E1WF1BZE.INF|EPSON L3550 Series
 
 [PRINTERS]
 B10楼G区产品设计打印机=192.168.100.58|EPSON
@@ -376,12 +376,12 @@ INI 的基本语法是 `键=值`，所以：
 
 | 区段 | 键 | 值第 1 段 | 值第 2 段 |
 |---|---|---|---|
-| `[MODELS]` | 型号标签，自定义短名 | 驱动 INF 相对 `DRV_PATH` 的路径，**开头带 `\`** | 驱动型号名称，**与 Windows 驱动列表完全一致，不加引号** |
+| `[MODELS]` | 型号标签，自定义短名 | 驱动 INF 相对 `DRV_PATH` 的路径，**开头不带 `\`**，直接写子目录 | 驱动型号名称，**与 Windows 驱动列表完全一致，不加引号** |
 | `[PRINTERS]` | 菜单显示名 | 打印机 IP 地址 | 型号标签（对应 `[MODELS]` 的键） |
 
-> 驱动相对路径是相对 `DRV_PATH`（默认 `\\192.168.7.230\shared\打印机驱动\Windows\`）而言。
-> 例如 `\EPSON_L3550\X64\E1WF1BZE.INF` 实际展开为
-> `\\192.168.7.230\shared\打印机驱动\Windows\\EPSON_L3550\X64\E1WF1BZE.INF`（双斜杠无影响）。
+> 驱动相对路径是相对 `DRV_PATH`（默认 `\\192.168.7.230\shared\打印机驱动\Windows\`）而言，`DRV_PATH` 末尾已自带 `\`。
+> 因此路径**开头不要写 `\`**，例如 `EPSON_L3550\X64\E1WF1BZE.INF` 实际展开为
+> `\\192.168.7.230\shared\打印机驱动\Windows\EPSON_L3550\X64\E1WF1BZE.INF`。
 
 #### 4.2.7 配置printers.ini文件
 
@@ -389,7 +389,7 @@ INI 的基本语法是 `键=值`，所以：
 
 ```ini
 [MODELS]
-M227=\HP\M227\hpygid30_v4.inf|HP LaserJet MFP M227-M231 PCL-6
+M227=HP\M227\hpygid30_v4.inf|HP LaserJet MFP M227-M231 PCL-6
 
 [PRINTERS]
 B10楼A区打印机=192.168.100.60|M227
@@ -403,7 +403,7 @@ B10楼A区打印机=192.168.100.60|M227
 #### 4.2.8 核对准备结果
 
 - [ ] 共享目录里能看到 INF，且同目录下 dll/cat/x64 齐全；
-- [ ] INF 相对路径以 `\` 开头，能从 `...\Windows\` 拼出完整路径；
+- [ ] INF 相对路径**不以 `\` 开头**，能从 `...\Windows\` 拼出完整路径；
 - [ ] “驱动型号名称”与系统驱动列表**逐字一致**，未加引号、无首尾空格；
 - [ ] `printers.ini` 已存为 **ANSI(GBK) + CRLF**；
 - [ ] `[PRINTERS]` 里引用的型号标签，在 `[MODELS]` 中确实存在。
@@ -419,12 +419,14 @@ B10楼A区打印机=192.168.100.60|M227
 ### 4.3 日常使用步骤
 
 1. 确认已接入内网，能访问 `\\192.168.7.230\shared`；
-2. **双击** `打印机连接工具_网络版.bat`；
+2. **双击** `打印机连接工具_网络版_Win11.bat`；
 3. 出现 UAC 提示时选择「是」（脚本需要管理员权限）；
 4. 等待“正在检测配置服务器网络连通性…”与“网络连接成功！！！”；
 5. 在菜单中输入打印机前面的编号并回车（输入 `0` 退出）；
 6. 等待创建端口、安装驱动（约 30 秒，提示“这不是卡住了”属正常）；
 7. 安装完成后可选择是否打印测试页（10 秒内不选默认打印）。
+
+Win11 版会生成 `printer_log.log`：正常结束并按键退出后自动删除；若某一步异常则保留，便于排查。
 
 运行成功后，打印机名称形如：`B10楼G区产品设计打印机@EPSON L3550 Series@192.168.100.58`。
 
@@ -493,7 +495,7 @@ Windows 记事本里“ANSI”在简体中文系统上等于 **GBK（代码页 9
 | 修改打印机 IP | `[PRINTERS]` 该行 `=` 右边、`|` 左边 |
 | 打印机菜单显示名 | `[PRINTERS]` 该行 `=` 左边 |
 | 新增/修改驱动型号 | `[MODELS]` 加/改一行 |
-| 驱动 INF 路径 | `[MODELS]` 该行 `|` 左边（相对 `DRV_PATH`，以 `\` 开头） |
+| 驱动 INF 路径 | `[MODELS]` 该行 `|` 左边（相对 `DRV_PATH`，开头不加 `\`） |
 | 驱动型号名称 | `[MODELS]` 该行 `|` 右边（获取方法见 4.2.5） |
 
 > `printers.ini` 必须保存为 **ANSI/GBK + CRLF**；改完保存即生效，使用者无需重新下载脚本，维护者也无需修改脚本本身。
